@@ -1,0 +1,15 @@
+[pytr]
+phone_number = +33612345678
+pin = 1234
+
+[database]
+path = data/trade_republic.db
+
+[filters]
+# Comma-separated list of ISINs to ignore
+blacklist_isins = LU2194448267
+
+[portfolio]
+deposit_name_pattern = xxxxxx - Fertig
+start_year = 2025
+start_month = 8
