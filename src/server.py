@@ -100,16 +100,14 @@ def get_summary():
     monthly_purchases_count = len(monthly_purchases)
     monthly_purchases_total = abs(monthly_purchases['value'].sum()) if not monthly_purchases.empty else 0
     
-    # Count deposits this month (name contains 'MELLE CARLA CHAVATTE - Fertig')
-    # We use str.contains with na=False to handle potential NaNs safely
-    monthly_deposits = df_current_month[
-        df_current_month['name'].str.contains(deposit_pattern, na=False)
-    ]
+    # Count deposits this month (type == 'DEPOSIT')
+    # Using type instead of name pattern for better robustness
+    monthly_deposits = df_current_month[df_current_month['type'] == 'DEPOSIT']
     monthly_deposits_count = len(monthly_deposits)
     monthly_deposits_total = monthly_deposits['value'].sum() if not monthly_deposits.empty else 0
 
-    # Calculate total deposits (all time, name contains deposit_pattern)
-    total_deposits_df = df[df['name'].str.contains(deposit_pattern, na=False)]
+    # Calculate total deposits (all time, type == 'DEPOSIT')
+    total_deposits_df = df[df['type'] == 'DEPOSIT']
     total_deposits = total_deposits_df['value'].sum() if not total_deposits_df.empty else 0
     
     # NEW METRICS
