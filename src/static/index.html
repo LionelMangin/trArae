@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trade Republic Portfolio</title>
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
@@ -14,7 +14,19 @@
     <div class="container">
         <header>
             <h1>My Portfolio</h1>
-            <div id="last-update">Last Update: Loading...</div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="price-mode-toggle">
+                    <label class="toggle-label">
+                        <span class="toggle-text">Prix pivot</span>
+                        <label class="switch">
+                            <input type="checkbox" id="price-mode-toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="toggle-text">Prix actuel</span>
+                    </label>
+                </div>
+                <div id="last-update">Last Update: Loading...</div>
+            </div>
         </header>
 
         <div class="stats-grid">
@@ -99,10 +111,10 @@
                             <tr>
                                 <th>Name</th>
                                 <th class="text-right">Valeur</th>
+                                <th class="text-right">Investi</th>
                                 <th class="text-right">Plus value</th>
                                 <th class="text-right">Parts</th>
                                 <th class="text-right">Prix</th>
-                                <th class="text-right">Investi</th>
                                 <th class="text-right">Manque</th>
                                 <th class="text-right">Plan</th>
                             </tr>
@@ -205,7 +217,7 @@
             </div>
         </div>
     </div>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=6"></script>
 </body>
 
 </html>

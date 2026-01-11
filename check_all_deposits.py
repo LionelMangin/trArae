@@ -7,9 +7,9 @@ conn = sqlite3.connect(DB_PATH)
 df = pd.read_sql_query("SELECT * FROM transactions WHERE type = 'DEPOSIT'", conn)
 conn.close()
 
-print("=== Tous les dépôts (DEPOSIT) ===")
-print(f"Nombre total: {len(df)}")
-print("\nNoms uniques des dépôts:")
+print("=== All deposits (DEPOSIT) ===")
+print(f"Total count: {len(df)}")
+print("\nUnique deposit names:")
 for name in df['name'].unique():
     count = len(df[df['name'] == name])
     print(f"  - '{name}' ({count} occurrences)")

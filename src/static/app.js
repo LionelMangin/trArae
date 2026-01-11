@@ -3,14 +3,39 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPositions();
     setupModal();
     setupPositionModal();
+    setupPriceModeToggle();
 });
 
 let currentPositionsList = [];
 let currentIsin = null;
+let useCurrentPrice = false; // Track the current price mode
+
+function setupPriceModeToggle() {
+    const toggle = document.getElementById('price-mode-toggle');
+
+    // Load saved preference from localStorage
+    const savedMode = localStorage.getItem('priceMode');
+    if (savedMode === 'current') {
+        toggle.checked = true;
+        useCurrentPrice = true;
+    }
+
+    // Listen for changes
+    toggle.addEventListener('change', (e) => {
+        useCurrentPrice = e.target.checked;
+
+        // Save preference
+        localStorage.setItem('priceMode', useCurrentPrice ? 'current' : 'pivot');
+
+        // Refresh data with new mode
+        fetchSummary();
+        fetchPositions();
+    });
+}
 
 async function fetchSummary() {
     try {
-        const response = await fetch('/api/summary');
+        const response = await fetch(`/api/summary?use_current_price=${useCurrentPrice}`);
         const data = await response.json();
 
         // Transactions section
@@ -184,7 +209,7 @@ async function fetchAndDisplayTransactions() {
 
 async function fetchPositions() {
     try {
-        const response = await fetch('/api/positions');
+        const response = await fetch(`/api/positions?use_current_price=${useCurrentPrice}`);
         const positions = await response.json();
         currentPositionsList = positions; // Store for navigation
 
@@ -225,12 +250,12 @@ function renderPositionsTable(positions) {
         tr.innerHTML = `
             <td>${pos.name}</td>
             <td class="text-right">${currencyFormatter.format(pos.current_value)}</td>
+            <td class="text-right">${currencyFormatter.format(pos.invested)}</td>
             <td class="text-right" style="color: ${plusValueColor}; font-weight: 600;">
                 ${currencyFormatter.format(pos.plus_value)}
             </td>
             <td class="text-right">${Math.round(pos.shares)}</td>
             <td class="text-right">${currencyFormatter.format(pos.average_price)}</td>
-            <td class="text-right">${currencyFormatter.format(pos.invested)}</td>
             <td class="text-right">${currencyFormatter.format(pos.missing)}</td>
             <td class="text-right" style="color: ${nextPlanColor}; font-weight: ${pos.next_plan_is_red ? '700' : '400'};">${currencyFormatterNoCents.format(pos.next_plan)}</td>
         `;
@@ -393,8 +418,7 @@ function renderPositionChart(history) {
 function renderAllocationChart(positions) {
     const ctx = document.getElementById('allocationChart').getContext('2d');
 
-    // Sort by plus value descending
-    positions.sort((a, b) => b.plus_value - a.plus_value);
+    // Use the same order as the table (no sorting)
 
     const labels = positions.map(p => p.name);
     const data = positions.map(p => p.plus_value);

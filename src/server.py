@@ -54,7 +54,7 @@ def get_transactions():
     return [dict(t) for t in transactions]
 
 @app.get("/api/summary")
-def get_summary():
+def get_summary(use_current_price: bool = False):
     conn = get_db_connection()
     df = pd.read_sql_query("SELECT * FROM transactions", conn)
     
@@ -125,7 +125,7 @@ def get_summary():
     conn.close()
     
     # Get positions to calculate total current value and plus-value
-    positions = get_positions()  # This function opens its own connection
+    positions = get_positions(use_current_price=use_current_price)  # Pass the parameter
     total_current_value = sum(pos['current_value'] for pos in positions)
     total_plus_value = total_current_value - total_invested
     total_missing = sum(pos['missing'] for pos in positions)
@@ -147,7 +147,7 @@ def get_summary():
     }
 
 @app.get("/api/positions")
-def get_positions():
+def get_positions(use_current_price: bool = False):
     conn = get_db_connection()
     # Filter transactions with ISIN
     # Include buys (type = 'Savings Plan') AND sells (name contains 'Liquidation')
@@ -162,6 +162,23 @@ def get_positions():
         params.extend(blacklist_isins)
 
     df = pd.read_sql_query(query, conn, params=params)
+    
+    # Get current prices if requested
+    current_prices = {}
+    if use_current_price:
+        cursor = conn.cursor()
+        # Get the most recent price for each ISIN
+        cursor.execute("""
+            SELECT isin, price 
+            FROM etf_prices 
+            WHERE (isin, date) IN (
+                SELECT isin, MAX(date) 
+                FROM etf_prices 
+                GROUP BY isin
+            )
+        """)
+        current_prices = {row[0]: row[1] for row in cursor.fetchall()}
+    
     conn.close()
     
     if df.empty: return []
@@ -173,9 +190,9 @@ def get_positions():
     current_month = now.month
     
     # Calculate months since start date
-    months_since_start = (current_year - start_year) * 12 + (current_month - start_month) + 1
-    if months_since_start < 1:
-        months_since_start = 1  # Minimum 1 month
+    months_since_start = (current_year - start_year) * 12 + (current_month - start_month)
+    if months_since_start < 0:
+        months_since_start = 0
 
     # Group by ISIN
     positions = []
@@ -200,19 +217,24 @@ def get_positions():
         # Calculate invested (sum of purchase amounts)
         invested = abs(buys['value'].sum()) if not buys.empty else 0
         
-        # Get last purchase to determine average price
-        if not buys.empty:
-            # Sort by date to get the last purchase
-            buys_sorted = buys.sort_values('date', ascending=False)
-            last_purchase = buys_sorted.iloc[0]
-            
-            # Calculate average price = value / shares from last purchase
-            if last_purchase['shares'] and last_purchase['shares'] > 0:
-                average_price = abs(last_purchase['value']) / last_purchase['shares']
+        # Get price based on mode
+        if use_current_price and isin in current_prices:
+            # Use current price from database
+            average_price = current_prices[isin]
+        else:
+            # Use last purchase price (pivot mode - default)
+            if not buys.empty:
+                # Sort by date to get the last purchase
+                buys_sorted = buys.sort_values('date', ascending=False)
+                last_purchase = buys_sorted.iloc[0]
+                
+                # Calculate average price = value / shares from last purchase
+                if last_purchase['shares'] and last_purchase['shares'] > 0:
+                    average_price = abs(last_purchase['value']) / last_purchase['shares']
+                else:
+                    average_price = 0
             else:
                 average_price = 0
-        else:
-            average_price = 0
         
         # Calculate current value = shares * average_price
         current_value = total_shares * average_price
@@ -224,7 +246,7 @@ def get_positions():
         missing = (months_since_start * 110) - invested
         
         # Calculate next_plan based on condition
-        # If manque >= (prix moyen * 1.1): next_plan = 110 + manque + (10% of prix moyen) and display in red
+        # If missing >= (average price * 1.1): next_plan = 110 + missing + (10% of average price) and display in red
         # Otherwise: next_plan = 110
         if missing >= (average_price * 1.1):
             next_plan = 110 + missing + (0.1 * average_price)
@@ -324,7 +346,7 @@ def get_position_details(isin: str):
 
         elif 'Liquidation' in str(row['name']):
             # Sale - for now just update shares, maybe don't show in the "purchase history" table 
-            # or show it differently. The user asked for "liste de toutes la achats".
+            # or show it differently. The user asked for "list of all purchases".
             # So we will skip adding it to the list but update the state.
             shares = row['shares'] # usually negative or positive depending on import? 
             # In DB, shares for liquidation might be negative? Let's check.
