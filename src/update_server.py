@@ -13,7 +13,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 def main():
-    print("🚀 Mise à jour du serveur (import des données)...")
+    print("Mise a jour du serveur (import des donnees)...")
     
     try:
         # Run src.main module
@@ -21,9 +21,9 @@ def main():
             sys.executable, '-m', 'src.main'
         ], cwd=project_root, check=True)
         
-        print("✅ Mise à jour terminée")
+        print("Mise a jour terminee")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Erreur lors de la mise à jour: {e}")
+        print(f"Erreur lors de la mise a jour: {e}")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Erreur inattendue: {e}")

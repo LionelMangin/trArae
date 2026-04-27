@@ -29,10 +29,19 @@ def init_etf_prices_table():
         CREATE INDEX IF NOT EXISTS idx_etf_prices_isin_date 
         ON etf_prices(isin, date DESC)
     """)
+
+    # Create table for ISIN to ticker mapping
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS etf_mapping (
+            isin TEXT PRIMARY KEY,
+            ticker TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     
     conn.commit()
     conn.close()
-    print("OK - Table etf_prices created successfully")
+    print("OK - Tables etf_prices and etf_mapping initialized successfully")
 
 if __name__ == "__main__":
     init_etf_prices_table()

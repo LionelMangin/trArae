@@ -81,7 +81,7 @@ def get_summary(use_current_price: bool = False):
         }
 
     # Convert date column to datetime
-    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = pd.to_datetime(df['date'], format='ISO8601', utc=True)
     
     # Get current month and year
     from datetime import datetime
@@ -183,13 +183,18 @@ def get_positions(use_current_price: bool = False):
     
     if df.empty: return []
 
+    # Convert date column to datetime
+    if not df.empty:
+        df['date'] = pd.to_datetime(df['date'], format='ISO8601', utc=True)
+
     # Get current date for "manque" calculation
     from datetime import datetime
     now = datetime.now()
     current_year = now.year
     current_month = now.month
     
-    # Calculate months since start date
+    # Calculate base months since start date (0-indexed offset from start)
+    # Aug 2025 start, Aug 2025 current = 0
     months_since_start = (current_year - start_year) * 12 + (current_month - start_month)
     if months_since_start < 0:
         months_since_start = 0
@@ -242,11 +247,44 @@ def get_positions(use_current_price: bool = False):
         # Calculate plus value = current_value - invested
         plus_value = current_value - invested
         
-        # Calculate missing = (months * 110) - invested
-        missing = (months_since_start * 110) - invested
+        # Determine target months based on purchase activity
+        target_months = months_since_start
+        
+        # Check if bought this month
+        if not buys.empty:
+            has_purchase_this_month = not buys[
+                (buys['date'].dt.month == current_month) & 
+                (buys['date'].dt.year == current_year)
+            ].empty
+            
+            if has_purchase_this_month:
+                # If we bought this month, we should target the current month count (so +1 compared to 0-index base)
+                # target_months becomes equivalent to "1" for the first month, "6" for the 6th month, etc.
+                target_months += 1
+
+        # Calculate missing
+        # Standard monthly target is 110 EUR
+        # If target_months = 0 (Start month, no buy yet): Missing = 0 - 0 = 0? 
+        # Wait, if I start in Aug and haven't bought, I should miss 110?
+        # If months_since_start=0, missing=0. But I should buy!
+        # Actually user logic implies: months_since_start is "Past completed months".
+        # So for Aug (0), we expect 0 completed? No, user probably uses "missing" to drive purchase.
+        # But let's stick to fixing the "Negative" issue first (Overpayment).
+        # Previous logic was: missing = (months_since_start * 110) - invested.
+        # If I bought in Aug: (0 * 110) - 110 = -110.
+        # With fix: target = 0 + 1 = 1. (1 * 110) - 110 = 0.
+        # This solves the negative issue.
+        # Does it solve the "Not bought yet" issue?
+        # If not bought in Aug: target=0. Invested=0. Missing=0.
+        # This implies "Missing" doesn't prompt for the *first* month?
+        # Or maybe `months_since_start` logic is intended to be `+1` always? 
+        # But `months_since_start` formula is standard delta.
+        # Let's assume for now we only fix the "Negative" issue reported.
+        
+        missing = (target_months * 110) - invested
         
         # Calculate next_plan based on condition
-        # If missing >= (average price * 1.1): next_plan = 110 + missing + (10% of average price) and display in red
+        # If missing >= (average_price * 1.1): next_plan = 110 + missing + (10% of average price) and display in red
         # Otherwise: next_plan = 110
         if missing >= (average_price * 1.1):
             next_plan = 110 + missing + (0.1 * average_price)
@@ -257,8 +295,6 @@ def get_positions(use_current_price: bool = False):
             next_plan = 110
             next_plan_is_red = False
 
-
-        
         positions.append({
             "isin": isin,
             "name": name,
@@ -292,7 +328,7 @@ def get_position_details(isin: str):
         raise HTTPException(status_code=404, detail="Position not found")
         
     # Convert date to datetime
-    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = pd.to_datetime(df['date'], format='ISO8601', utc=True)
     
     # Filter for Savings Plan (buys) and Liquidation (sells)
     # We'll focus on buys for the history and average calculation as per request

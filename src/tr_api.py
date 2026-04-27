@@ -3,8 +3,16 @@ import asyncio
 from pathlib import Path
 from pytr.account import login
 from pytr.timeline import Timeline
-from pytr.event import Event
+from pytr.event import Event, tr_event_type_mapping, ConditionalEventType
 from .models import Transaction
+
+# Patch pytr to recognize new event types
+tr_event_type_mapping["TRADING_SAVINGSPLAN_EXECUTED"] = ConditionalEventType.TRADE_INVOICE
+tr_event_type_mapping["TRADING_TRADE_EXECUTED"] = ConditionalEventType.TRADE_INVOICE
+tr_event_type_mapping["PEA_SAVINGS_PLAN_PAY_IN"] = ConditionalEventType.TRADE_INVOICE
+tr_event_type_mapping["SAVINGS_PLAN_EXECUTED"] = ConditionalEventType.TRADE_INVOICE
+tr_event_type_mapping["trading_savingsplan_executed"] = ConditionalEventType.TRADE_INVOICE
+tr_event_type_mapping["trading_trade_executed"] = ConditionalEventType.TRADE_INVOICE
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +24,10 @@ class TradeRepublicAPI:
 
     def login(self):
         logger.info("Logging in to Trade Republic...")
-        # This will trigger the CLI input for 2FA if not already authenticated/keyfile missing
+        # Use Native App API flow to avoid WAF blocking on web endpoints
         self.tr = login(
             phone_no=self.phone_number,
             pin=self.pin,
-            web=True,
             store_credentials=True
         )
         logger.info("Login successful.")
@@ -53,8 +60,6 @@ class TradeRepublicAPI:
         timeline = Timeline(
             tr=self.tr,
             output_path=output_path,
-            not_before=0,  # Get all historical data
-            not_after=0,   # Up to present
             store_event_database=False,  # We don't need the event database file
             dump_raw_data=False  # We don't need raw JSON dumps
         )
@@ -92,11 +97,20 @@ class TradeRepublicAPI:
             raw_type = str(event.event_type.value) if hasattr(event.event_type, 'value') else str(event.event_type)
             
             # Map known types to readable strings
-            type_mapping = {
-                "2": "Savings Plan",
-                "1": "Trade"
-            }
-            event_type_str = type_mapping.get(raw_type, raw_type)
+            tr_event_type = event_dict.get('eventType', '')
+            subtitle = event_dict.get('subtitle', '')
+            
+            if raw_type == '3' or 'TRADE_INVOICE' in str(event.event_type):
+                if tr_event_type in ['SAVINGS_PLAN_EXECUTED', 'trading_savingsplan_executed'] or 'Sparplan' in subtitle:
+                    event_type_str = "Savings Plan"
+                else:
+                    event_type_str = "Trade"
+            else:
+                type_mapping = {
+                    "2": "Savings Plan",
+                    "1": "Trade"
+                }
+                event_type_str = type_mapping.get(raw_type, raw_type)
             
             # Build a descriptive name from title and subtitle
             title = event_dict.get('title', '')
